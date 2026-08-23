@@ -11,21 +11,12 @@ async def main():
         async with ClientSession(read, write) as session:
             await session.initialize()
 
-            print("--- Testing a category that doesn't exist ---")
-            result = await session.call_tool("get_total_by_category", {"category": "entertainment"})
+            print("--- Testing forecast_next_month ---")
+            result = await session.call_tool("forecast_next_month", {"category": "food"})
             print(result)
 
-            print("\n--- Testing a negative amount ---")
-            result2 = await session.call_tool("add_expense", {
-                "date": "2026-08-21",
-                "category": "food",
-                "amount": -100,
-                "description": "Invalid test"
-            })
+            print("\n--- Testing detect_anomaly ---")
+            result2 = await session.call_tool("detect_anomaly", {"category": "food"})
             print(result2)
-
-            print("\n--- Testing an empty category ---")
-            result3 = await session.call_tool("get_total_by_category", {"category": ""})
-            print(result3)
 
 asyncio.run(main())

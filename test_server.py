@@ -59,3 +59,34 @@ async def test_empty_category_rejected():
             result = await session.call_tool("get_total_by_category", {"category": ""})
             text = result.content[0].text
             assert "Error" in text
+
+@pytest.mark.asyncio
+async def test_get_existing_categories_returns_known_categories():
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool("get_existing_categories", {})
+            text = result.content[0].text
+            # From our test data: food, transport
+            assert "food" in text
+            assert "transport" in text
+
+@pytest.mark.asyncio
+async def test_forecast_with_known_data():
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            # Test data has July (50) and August (100+200=300) for food
+            # Average of the two months: (50 + 300) / 2 = 175
+            result = await session.call_tool("forecast_next_month", {"category": "food"})
+            text = result.content[0].text
+            assert "175" in text
+
+@pytest.mark.asyncio
+async def test_detect_anomaly_with_insufficient_data():
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool("detect_anomaly", {"category": "food"})
+            text = result.content[0].text
+            assert "Not enough historical data" in text

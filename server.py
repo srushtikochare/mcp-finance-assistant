@@ -111,5 +111,83 @@ def add_expense(date: str, category: str, amount: float, description: str = "") 
         logging.error(f"Unexpected error in add_expense: {e}")
         return f"Unexpected error in add_expense: {e}"
 
+@mcp.tool()
+def get_existing_categories() -> str:
+    """Get the list of categories already used in the expense database, to help with categorization."""
+    logging.info("get_existing_categories called")
+    try:
+        conn = get_connection()
+        categories = [r[0] for r in conn.execute("SELECT DISTINCT category FROM expenses").fetchall()]
+        conn.close()
+        return ", ".join(categories) if categories else "No categories yet."
+    except Exception as e:
+        logging.error(f"Error in get_existing_categories: {e}")
+        return f"Error fetching categories: {e}"
+
+@mcp.tool()
+def forecast_next_month(category: str) -> str:
+    """Forecast next month's spending for a category based on historical monthly averages."""
+    logging.info(f"forecast_next_month called with category={category}")
+    try:
+        conn = get_connection()
+        query = """
+            SELECT strftime('%Y-%m', date) as month, SUM(amount) as total
+            FROM expenses WHERE category = ?
+            GROUP BY month ORDER BY month
+        """
+        rows = conn.execute(query, (category,)).fetchall()
+        conn.close()
+
+        if len(rows) < 2:
+            return f"Not enough historical data to forecast '{category}' — need at least 2 months of history."
+
+        monthly_totals = [r[1] for r in rows]
+        recent = monthly_totals[-3:]
+        forecast = sum(recent) / len(recent)
+
+        return (
+            f"Based on the last {len(recent)} month(s) of data, "
+            f"forecasted spending on {category} next month: {forecast:.2f} "
+            f"(recent monthly totals: {[round(m, 2) for m in recent]})"
+        )
+    except Exception as e:
+        logging.error(f"Error in forecast_next_month: {e}")
+        return f"Error forecasting for {category}: {e}"
+
+@mcp.tool()
+def detect_anomaly(category: str) -> str:
+    """Check if recent spending in a category is unusually high compared to the historical average."""
+    logging.info(f"detect_anomaly called with category={category}")
+    try:
+        conn = get_connection()
+        query = """
+            SELECT strftime('%Y-%m', date) as month, SUM(amount) as total
+            FROM expenses WHERE category = ?
+            GROUP BY month ORDER BY month
+        """
+        rows = conn.execute(query, (category,)).fetchall()
+        conn.close()
+
+        if len(rows) < 3:
+            return f"Not enough historical data to detect anomalies for '{category}'."
+
+        monthly_totals = [r[1] for r in rows]
+        historical = monthly_totals[:-1]
+        latest = monthly_totals[-1]
+        avg_historical = sum(historical) / len(historical)
+
+        if avg_historical == 0:
+            return f"No historical baseline available for '{category}'."
+
+        ratio = latest / avg_historical
+        if ratio >= 1.3:
+            pct = round((ratio - 1) * 100)
+            return f"⚠️ Anomaly detected: {category} spending is {pct}% higher than your historical average ({latest:.2f} vs typical {avg_historical:.2f})."
+        else:
+            return f"No anomaly detected for {category}. Latest: {latest:.2f}, historical average: {avg_historical:.2f}."
+    except Exception as e:
+        logging.error(f"Error in detect_anomaly: {e}")
+        return f"Error detecting anomaly for {category}: {e}"
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")
