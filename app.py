@@ -9,8 +9,10 @@ from mcp import ClientSession, StdioServerParameters, stdio_client
 
 load_dotenv()
 
+import sys
+
 server_params = StdioServerParameters(
-    command="python",
+    command=sys.executable,
     args=["server.py"],
 )
 
