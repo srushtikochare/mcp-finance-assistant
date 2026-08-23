@@ -126,7 +126,7 @@ def get_existing_categories() -> str:
 
 @mcp.tool()
 def forecast_next_month(category: str) -> str:
-    """Forecast next month's spending for a category based on historical monthly averages."""
+    """Forecast next month's spending for a category using linear regression on historical trends."""
     logging.info(f"forecast_next_month called with category={category}")
     try:
         conn = get_connection()
@@ -141,14 +141,27 @@ def forecast_next_month(category: str) -> str:
         if len(rows) < 2:
             return f"Not enough historical data to forecast '{category}' — need at least 2 months of history."
 
-        monthly_totals = [r[1] for r in rows]
-        recent = monthly_totals[-3:]
-        forecast = sum(recent) / len(recent)
+        from sklearn.linear_model import LinearRegression
+        import numpy as np
+
+        totals = [r[1] for r in rows]
+
+        X = np.array(range(len(totals))).reshape(-1, 1)
+        y = np.array(totals)
+
+        model = LinearRegression()
+        model.fit(X, y)
+
+        next_index = np.array([[len(totals)]])
+        forecast = model.predict(next_index)[0]
+        forecast = max(0, forecast)
+
+        trend = "increasing" if model.coef_[0] > 0 else "decreasing" if model.coef_[0] < 0 else "stable"
 
         return (
-            f"Based on the last {len(recent)} month(s) of data, "
+            f"Using linear regression on {len(totals)} months of history, "
             f"forecasted spending on {category} next month: {forecast:.2f} "
-            f"(recent monthly totals: {[round(m, 2) for m in recent]})"
+            f"(trend: {trend}, recent totals: {[round(t, 2) for t in totals[-3:]]})"
         )
     except Exception as e:
         logging.error(f"Error in forecast_next_month: {e}")
@@ -156,7 +169,7 @@ def forecast_next_month(category: str) -> str:
 
 @mcp.tool()
 def detect_anomaly(category: str) -> str:
-    """Check if recent spending in a category is unusually high compared to the historical average."""
+    """Check if recent spending in a category is anomalous using an Isolation Forest model trained on historical data."""
     logging.info(f"detect_anomaly called with category={category}")
     try:
         conn = get_connection()
@@ -171,20 +184,31 @@ def detect_anomaly(category: str) -> str:
         if len(rows) < 3:
             return f"Not enough historical data to detect anomalies for '{category}'."
 
-        monthly_totals = [r[1] for r in rows]
-        historical = monthly_totals[:-1]
-        latest = monthly_totals[-1]
-        avg_historical = sum(historical) / len(historical)
+        from sklearn.ensemble import IsolationForest
+        import numpy as np
 
-        if avg_historical == 0:
-            return f"No historical baseline available for '{category}'."
+        totals = [r[1] for r in rows]
+        X = np.array(totals).reshape(-1, 1)
 
-        ratio = latest / avg_historical
-        if ratio >= 1.3:
-            pct = round((ratio - 1) * 100)
-            return f"⚠️ Anomaly detected: {category} spending is {pct}% higher than your historical average ({latest:.2f} vs typical {avg_historical:.2f})."
+        # contamination='auto' lets the model decide a reasonable anomaly rate
+        model = IsolationForest(contamination=0.2, random_state=42)
+        model.fit(X)
+
+        predictions = model.predict(X)  # -1 = anomaly, 1 = normal
+        latest_prediction = predictions[-1]
+        latest_value = totals[-1]
+        avg_historical = sum(totals[:-1]) / len(totals[:-1])
+
+        if latest_prediction == -1:
+            pct = round(((latest_value / avg_historical) - 1) * 100) if avg_historical > 0 else 0
+            direction = "higher" if latest_value > avg_historical else "lower"
+            return (
+                f"⚠️ Anomaly detected (Isolation Forest): {category} spending this month "
+                f"({latest_value:.2f}) is unusual — {abs(pct)}% {direction} than your typical pattern "
+                f"({avg_historical:.2f})."
+            )
         else:
-            return f"No anomaly detected for {category}. Latest: {latest:.2f}, historical average: {avg_historical:.2f}."
+            return f"No anomaly detected for {category}. Latest: {latest_value:.2f}, historical average: {avg_historical:.2f}."
     except Exception as e:
         logging.error(f"Error in detect_anomaly: {e}")
         return f"Error detecting anomaly for {category}: {e}"
