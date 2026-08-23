@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -12,7 +13,7 @@ from mcp import ClientSession, StdioServerParameters, stdio_client
 load_dotenv()
 
 server_params = StdioServerParameters(
-    command="python",
+    command=sys.executable,
     args=["server.py"],
 )
 
