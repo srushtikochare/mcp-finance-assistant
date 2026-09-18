@@ -1,89 +1,343 @@
 # 💰 Personal Finance Assistant — MCP + Gemini
 
-An AI-powered finance assistant that lets you ask questions about your expenses in plain English. Built using the **Model Context Protocol (MCP)** to connect Google's Gemini to real tools — a SQL database, forecasting models, and anomaly detection — instead of a scripted chatbot that only knows how to talk.
+An AI-powered personal finance assistant that allows users to analyze and manage expenses using **natural language**. The system combines **Google Gemini, Model Context Protocol (MCP), SQL data, and machine learning tools** to transform a conversational request into real database queries, predictions, and anomaly detection.
 
-**🔗 Live demo:** [mcp-finance-assistant-z6txg3k6xparsajcsvftrr.streamlit.app](https://mcp-finance-assistant-z6txg3k6xparsajcsvftrr.streamlit.app)
+🔗 **Live Demo:** https://mcp-finance-assistant-z6txg3k6xparsajcsvftrr.streamlit.app/
 
 ---
 
-## What it does
+## 🚀 Overview
 
-Ask it things like:
-- *"How much did I spend on food this month?"*
-- *"Compare my spending in August vs July"*
-- *"Add an expense of 250 for Uber to the airport"* — it infers the category itself
-- *"What will I spend on food next month?"* — real ML forecasting, not a guess
+Traditional expense trackers require users to navigate filters, categories, and dashboards manually.
 
-It also **proactively** flags unusual spending the moment the page loads, without being asked.
+This project provides a conversational interface where users can simply ask:
 
-## Why MCP
+* *"How much did I spend on food this month?"*
+* *"Compare my spending in August and July."*
+* *"Show me my recent expenses."*
+* *"Add an expense of ₹250 for Uber to the airport."*
+* *"What will I spend on food next month?"*
 
-Most AI finance-tracker demos hardcode a chatbot's responses or bolt an LLM onto static data. This project instead builds a real **MCP server** — a standardized way (introduced by Anthropic) for an AI model to discover and call real tools. Gemini reads the available tools, decides which one(s) it needs, calls them through the MCP protocol, and reasons over the actual results. It's the same pattern used by production AI agent systems, not a toy simulation.
+Instead of generating answers from predefined responses, **Gemini determines which application tool is required, invokes it through MCP, receives the actual result, and generates a natural-language response.**
 
-## Architecture
+The system also performs **automatic anomaly detection** to identify unusual spending patterns.
 
+---
+
+## 🎯 Key Objectives
+
+* Enable natural-language interaction with structured financial data.
+* Integrate an LLM with real application tools using **Model Context Protocol (MCP)**.
+* Provide expense analysis using a SQL database.
+* Apply machine learning for spending forecasting and anomaly detection.
+* Support multi-step tool execution for requests requiring multiple operations.
+* Validate inputs and handle tool-level errors reliably.
+* Provide automated tests for core financial calculations and tool behavior.
+
+---
+
+## 🏗️ System Architecture
+
+```text
+                         ┌──────────────┐
+                         │     User     │
+                         └──────┬───────┘
+                                │
+                                ▼
+                     ┌────────────────────┐
+                     │   Streamlit UI     │
+                     └─────────┬──────────┘
+                               │
+                               ▼
+                     ┌────────────────────┐
+                     │   Google Gemini   │
+                     │  Tool Selection   │
+                     └─────────┬──────────┘
+                               │
+                         MCP Protocol
+                               │
+                               ▼
+                     ┌────────────────────┐
+                     │    MCP Server      │
+                     │     server.py      │
+                     └─────────┬──────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              │                │                │
+              ▼                ▼                ▼
+       ┌────────────┐   ┌─────────────┐  ┌──────────────┐
+       │   SQLite   │   │ Forecasting │  │   Anomaly    │
+       │  Database  │   │     ML      │  │  Detection   │
+       └────────────┘   └─────────────┘  └──────────────┘
+              │                │                │
+              └────────────────┼────────────────┘
+                               ▼
+                         Tool Results
+                               │
+                               ▼
+                     ┌────────────────────┐
+                     │   Google Gemini    │
+                     │ Response Generation│
+                     └─────────┬──────────┘
+                               │
+                               ▼
+                         Natural Language
+                            Response
 ```
-User question → Streamlit UI → Gemini (decides which tool to call)
-                                      ↓
-                          MCP Server (server.py)
-                                      ↓
-                          SQLite Database (real transaction data)
-                                      ↓
-                     Tool result → back to Gemini → plain-English answer
+
+### Multi-step Tool Calling
+
+Some requests require more than one operation.
+
+For example:
+
+> *"Add ₹250 for Uber to the airport."*
+
+The system can perform a sequence such as:
+
+```text
+User Request
+     ↓
+Identify missing category
+     ↓
+Retrieve available categories
+     ↓
+Gemini determines appropriate category
+     ↓
+Add expense to database
+     ↓
+Return confirmation
 ```
 
-For multi-step requests (like adding an expense without a category), Gemini chains multiple tool calls — first fetching existing categories, then inferring the right one, then adding the expense — up to 3 steps per question.
+This demonstrates how an LLM can interact with application capabilities rather than simply generating text.
 
-## Features
+---
 
-- **7 MCP tools**: query totals, compare months, list recent expenses, add expenses, get categories, forecast spending, detect anomalies
-- **Real ML, not rules**: `forecast_next_month` uses scikit-learn `LinearRegression` on historical trends; `detect_anomaly` uses an unsupervised `IsolationForest` model instead of a hardcoded threshold
-- **LLM-inferred categorization**: describe an expense in plain English and Gemini picks the right category on its own, chaining tool calls to do it
-- **Proactive insights**: automatic anomaly checks run on page load, no question needed
-- **Conversation memory**: follow-up questions understand context from earlier in the chat
-- **Real data**: 240+ real transaction records, including 231 imported and cleaned from a public Kaggle personal-expense dataset
-- **Production practices**: full error handling and input validation on every tool, structured logging (`app.log`), and an 8-test `pytest` suite verifying calculations against known data
+## ✨ Features
 
-## Tech stack
+### 1. Natural-Language Expense Analysis
 
-Python · MCP SDK · Google Gemini (`google-genai`) · SQLite · scikit-learn · Streamlit · pytest
+Users can ask questions about their expenses without manually writing SQL queries or navigating filters.
 
-## Running it locally
+Example:
 
-```bash
-git clone https://github.com/srushtikochare/mcp-finance-assistant
-cd mcp-finance-assistant
-pip install -r requirements.txt
+```text
+"How much did I spend on food this month?"
 ```
 
-Create a `.env` file:
-```
-GOOGLE_API_KEY=your_api_key_here
+The system retrieves the relevant financial data and returns the result in natural language.
+
+### 2. MCP-Based Tool Integration
+
+The application exposes financial operations as MCP tools that Gemini can discover and invoke.
+
+The project currently provides **7 tools** for:
+
+* Expense totals
+* Monthly comparisons
+* Recent expense retrieval
+* Adding expenses
+* Category retrieval
+* Spending forecasts
+* Anomaly detection
+
+### 3. Machine Learning Forecasting
+
+The `forecast_next_month` tool uses **scikit-learn Linear Regression** to estimate future spending based on historical spending trends.
+
+This allows the assistant to answer questions such as:
+
+```text
+"What will I spend on food next month?"
 ```
 
-Then run:
-```bash
-streamlit run app.py
+### 4. Anomaly Detection
+
+The system uses **Isolation Forest**, an unsupervised machine-learning algorithm, to identify potentially unusual spending patterns.
+
+Instead of relying only on a manually defined spending threshold, the model identifies observations that differ from the learned pattern.
+
+### 5. LLM-Based Categorization
+
+When an expense is entered without an explicit category, Gemini can infer the appropriate category using available category information.
+
+Example:
+
+```text
+"Add ₹250 for Uber to the airport."
 ```
 
-## Running the tests
+The system can identify the relevant category before storing the transaction.
+
+### 6. Proactive Insights
+
+The application performs an automatic anomaly check when the interface loads, allowing unusual transactions to be highlighted without requiring the user to explicitly ask.
+
+### 7. Conversational Context
+
+Follow-up questions can use information from the ongoing conversation.
+
+Example:
+
+```text
+User: How much did I spend on food in August?
+
+Assistant: ₹4,850.
+
+User: What about July?
+
+Assistant: ₹4,120.
+```
+
+### 8. Input Validation and Error Handling
+
+Tools validate inputs and handle invalid requests before performing database or model operations.
+
+### 9. Automated Testing
+
+The project includes a `pytest` test suite covering:
+
+* Financial calculations
+* Error handling
+* Tool behavior
+* Machine-learning tool execution
+
+---
+
+## 📊 Dataset
+
+The application uses **240+ transaction records**, including **231 records imported and cleaned from a public Kaggle personal-expense dataset**.
+
+The dataset is stored and queried through SQLite for application-level financial analysis.
+
+---
+
+## 🛠️ Tech Stack
+
+| Category            | Technology                   |
+| ------------------- | ---------------------------- |
+| Language            | Python                       |
+| LLM                 | Google Gemini                |
+| AI Tool Integration | Model Context Protocol (MCP) |
+| Database            | SQLite                       |
+| Machine Learning    | scikit-learn                 |
+| Forecasting         | Linear Regression            |
+| Anomaly Detection   | Isolation Forest             |
+| Frontend            | Streamlit                    |
+| Testing             | pytest                       |
+| Logging             | Python logging               |
+
+---
+
+## 🧪 Testing
+
+Run the test suite using:
 
 ```bash
 pytest test_server.py -v
 ```
 
-8 tests covering correct sums, error handling, and ML tool behavior — all passing.
+The tests verify core calculations, error handling, and ML-related tool behavior against known data.
 
-## A real challenge I hit
+---
 
-The MCP Python SDK's structure had changed since most available documentation was written — the class I expected (`FastMCP`) didn't exist in the installed version. Rather than guess, I inspected the actual installed package (`dir(mcp.server)`) to find the correct current class (`MCPServer`) and API surface. Debugging against an evolving library with incomplete docs, instead of a stable tutorial-friendly one, was the most valuable part of building this.
+## ▶️ Running Locally
 
-## Possible next steps
+### 1. Clone the repository
 
-- Multi-user support with individual logins
-- Receipt/statement OCR upload for automatic expense entry
-- Retry logic with backoff for external API resilience
+```bash
+git clone https://github.com/srushtikochare/mcp-finance-assistant
+cd mcp-finance-assistant
+```
 
-## Author
+### 2. Install dependencies
 
-**Srushti Kochare** — B.Tech Artificial Intelligence & Data Science, YCCE Nagpur
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Configure the Gemini API key
+
+Create a `.env` file:
+
+```env
+GOOGLE_API_KEY=your_api_key_here
+```
+
+### 4. Run the application
+
+```bash
+streamlit run app.py
+```
+
+---
+
+## 🧠 Technical Challenge
+
+During development, the MCP Python SDK had changed from the API structure described in several available examples.
+
+Instead of relying on outdated documentation, I inspected the installed package and its available API surface to determine the appropriate server implementation.
+
+This required adapting the implementation to the **actual installed SDK version** and testing the integration against the current API.
+
+This experience highlighted an important practical aspect of AI application development: **LLM and AI infrastructure libraries evolve rapidly, so applications need to be developed against the actual SDK/API behavior rather than relying solely on older tutorials.**
+
+---
+
+## 🔐 Current Limitations
+
+This is currently designed as a **single-user personal finance application**.
+
+It does not yet include:
+
+* User authentication
+* Separate financial profiles
+* Receipt/statement OCR
+* Advanced forecasting models for strong seasonal patterns
+* Distributed deployment
+* Advanced API rate limiting
+
+These are potential directions for future development.
+
+---
+
+## 🔮 Future Improvements
+
+* Multi-user authentication and isolated financial profiles
+* Receipt and bank-statement OCR
+* More advanced forecasting models
+* Automatic recurring-expense detection
+* Interactive spending dashboards
+* Retry mechanisms with exponential backoff
+* More extensive evaluation datasets
+* Containerized deployment
+
+---
+
+## 💡 What This Project Demonstrates
+
+This project demonstrates practical experience with:
+
+* LLM tool calling
+* Model Context Protocol (MCP)
+* Agent-style application workflows
+* SQL database integration
+* Machine-learning integration
+* Natural-language interfaces
+* Anomaly detection
+* Time-series-style spending forecasting
+* API integration
+* Input validation and error handling
+* Automated testing
+* Application logging
+* Debugging evolving AI SDKs
+
+---
+
+## 👩‍💻 Author
+
+**Srushti Kochare**
+B.Tech — Artificial Intelligence & Data Science
+Yeshwantrao Chavan College of Engineering (YCCE), Nagpur
+
+GitHub: https://github.com/srushtikochare
